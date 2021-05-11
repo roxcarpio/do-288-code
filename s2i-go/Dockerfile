@@ -1,38 +1,45 @@
 # s2i-go
-FROM openshift/base-centos7
+FROM registry.access.redhat.com/ubi8/ubi:8.0
 
-# TODO: Put the maintainer name in the image metadata
-# LABEL maintainer="Your Name <your@email.com>"
+# Generic labels 
+LABEL Component="go" \
+      Name="s2i-go" \
+      Version="1.0" \
+      Release="1"
 
-# TODO: Rename the builder environment variable to inform users about application you provide them
-# ENV BUILDER_VERSION 1.0
+# Labels consumed by OpenShift 
+LABEL io.k8s.description="A basic Go S2I builder image" \
+      io.k8s.display-name="Go S2I builder image" \
+      io.openshift.expose-services="8080:http" \
+      io.openshift.s2i.scripts-url="image:///usr/libexec/s2i"
 
-# TODO: Set labels used in OpenShift to describe the builder image
-#LABEL io.k8s.description="Platform for building xyz" \
-#      io.k8s.display-name="builder x.y.z" \
-#      io.openshift.expose-services="8080:http" \
-#      io.openshift.tags="builder,x.y.z,etc."
+# This label is used to categorize this image as a builder image in the
+# OpenShift web console.
+LABEL io.openshift.tags="builder, go, golang"
 
-# TODO: Install required packages here:
-# RUN yum install -y ... && yum clean all -y
-RUN yum install -y rubygems && yum clean all -y
-RUN gem install asdf
+ENV APP_ROOT="/opt/app-root" \
+    GOCACHE="/tmp"
 
-# TODO (optional): Copy the builder files into /opt/app-root
-# COPY ./<builder_folder>/ /opt/app-root/
 
-# TODO: Copy the S2I scripts to /usr/libexec/s2i, since openshift/base-centos7 image
-# sets io.openshift.s2i.scripts-url label that way, or update that label
+RUN   yum install -y --nodocs --disableplugin=subscription-manager golang && \
+      yum clean all --disableplugin=subscription-manager -y
+
+# Copy the S2I scripts to /usr/libexec/s2i
 COPY ./s2i/bin/ /usr/libexec/s2i
 
-# TODO: Drop the root user and make the content of /opt/app-root owned by user 1001
-# RUN chown -R 1001:1001 /opt/app-root
+# Drop the root user and make the content of /opt/app-root owned by user 1001
+RUN  mkdir -p ${APP_ROOT} && \ 
+     chown -R 1001:1001 ${APP_ROOT} && \
+     chgrp -R 0 ${APP_ROOT} && \
+     chmod -R g=u ${APP_ROOT} && \
+     chmod +x /usr/libexec/s2i/assemble /usr/libexec/s2i/run /usr/libexec/s2i/usage
+
 
 # This default user is created in the openshift/base-centos7 image
 USER 1001
 
-# TODO: Set the default port for applications built using this image
-# EXPOSE 8080
+# Set the default port for applications built using this image
+EXPOSE 8080
 
-# TODO: Set the default CMD for the image
-# CMD ["/usr/libexec/s2i/usage"]
+# Set the default CMD for the image
+CMD ["/usr/libexec/s2i/usage"]

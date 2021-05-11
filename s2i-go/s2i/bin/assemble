@@ -1,18 +1,25 @@
-#!/bin/bash -e
-#
-# S2I assemble script for the 's2i-go' image.
-# The 'assemble' script builds your application source so that it is ready to run.
-#
-# For more information refer to the documentation:
-#	https://github.com/openshift/source-to-image/blob/master/docs/builder_image.md
-#
+#!/bin/bash
 
-if [[ "$1" == "-h" ]]; then
-	exec /usr/libexec/s2i/usage
-fi
+set -e
 
-echo "---> Installing application source..."
-cp -Rf /tmp/src/. /opt/app-root/
+echo
+echo "===> Build started at $(date)"
+echo
+START=$SECONDS
 
-echo "---> Building application from source..."
+# Unconditionally print elapsed build time at exit
+function finish {
+  echo "===> Elapsed time: $(($SECONDS - $START)) seconds"
+}
+trap finish EXIT
+
+echo "---> Preparing source..."
+cp -Rf /tmp/src/. $APP_ROOT
+
+cd $APP_ROOT
+
+echo "---> Building application source..."
 go build app.go
+
+echo
+echo "===> Build completed at $(date)"
