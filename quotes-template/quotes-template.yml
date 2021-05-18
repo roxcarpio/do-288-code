@@ -1,0 +1,307 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  app: quotes
+  template: quotes
+metadata:
+  annotations:
+    description: |-
+      The Quotes application provides an HTTP API that returns a random, funny quote.
+    iconClass: icon-php
+    openshift.io/display-name: Quotes Application + MySQL (Ephemeral)
+    tags: php,mysql
+  name: quotes
+objects:
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${NAME}
+  stringData:
+    database_password: ${DATABASE_PASSWORD}
+    database_user: ${DATABASE_USER}
+- apiVersion: v1
+  data:
+    quotes.sql: "CREATE TABLE IF NOT EXISTS quote (\n    id int(10) unsigned NOT NULL
+      AUTO_INCREMENT, \n    msg varchar(100) NOT NULL, \n    PRIMARY KEY (id)) ENGINE=InnoDB
+      DEFAULT CHARSET=utf8;\n\ninsert into quote(msg) values ('Hay dos palabras que te abrirán muchas puertas: Tire y Empuje.');\ninsert into
+      quote(msg) values ('El que ríe al ultimo, no entendió el chiste');\ninsert into quote(msg) values ('Uno que madrugó, un dólar se encontró. Pero más madrugó, aquel que lo perdió');\n"
+  kind: ConfigMap
+  metadata:
+    name: ${NAME}-config
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      description: Exposes and load balances the application pods
+      service.alpha.openshift.io/dependencies: '[{"name": "${DATABASE_SERVICE_NAME}",
+        "kind": "Service"}]'
+    name: ${NAME}
+  spec:
+    ports:
+    - name: web
+      port: 8080
+      targetPort: 8080
+    selector:
+      name: ${NAME}
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: ${NAME}
+  spec:
+    host: ${APPLICATION_DOMAIN}
+    to:
+      kind: Service
+      name: ${NAME}
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      description: Keeps track of changes in the application image
+    name: ${NAME}
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    annotations:
+      description: Defines how to build the application
+      template.alpha.openshift.io/wait-for-ready: "true"
+    name: ${NAME}
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${NAME}:latest
+    source:
+      contextDir: ${CONTEXT_DIR}
+      git:
+        ref: ${SOURCE_REPOSITORY_REF}
+        uri: ${SOURCE_REPOSITORY_URL}
+      type: Git
+    strategy:
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          name: php:${PHP_VERSION}
+          namespace: ${NAMESPACE}
+      type: Source
+    triggers:
+    - type: ImageChange
+    - type: ConfigChange
+    - github:
+        secret: ${GITHUB_WEBHOOK_SECRET}
+      type: GitHub
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      description: Defines how to deploy the application server
+      # template.alpha.openshift.io/wait-for-ready: "true"
+    name: ${NAME}
+  spec:
+    replicas: 1
+    selector:
+      name: ${NAME}
+    strategy:
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          name: ${NAME}
+        name: ${NAME}
+      spec:
+        containers:
+        - env:
+          - name: DATABASE_SERVICE_NAME
+            value: ${DATABASE_SERVICE_NAME}
+          - name: DATABASE_NAME
+            value: ${DATABASE_NAME}
+          - name: DATABASE_USER
+            valueFrom:
+              secretKeyRef:
+                key: database_user
+                name: ${NAME}
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: database_password
+                name: ${NAME}
+          image: ' '
+          name: quotesapi
+          ports:
+          - containerPort: 8080
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - quotesapi
+        from:
+          kind: ImageStreamTag
+          name: ${NAME}:latest
+      type: ImageChange
+    - type: ConfigChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      description: Exposes the database server
+    name: ${DATABASE_SERVICE_NAME}
+  spec:
+    ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+    selector:
+      name: ${DATABASE_SERVICE_NAME}
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      description: Defines how to deploy the database
+      template.alpha.openshift.io/wait-for-ready: "true"
+    name: ${DATABASE_SERVICE_NAME}
+  spec:
+    replicas: 1
+    selector:
+      name: ${DATABASE_SERVICE_NAME}
+    strategy:
+      type: Rolling
+      rollingParams:
+        post:
+          failurePolicy: Abort
+          execNewPod:
+            containerName: mysql 
+            command: [ "bash", "-c", "mysql -h$DATABASE_SERVICE_NAME -u$MYSQL_USER -p$MYSQL_PASSWORD -P3306 $MYSQL_DATABASE < /tmp/config/quotes.sql" ]  
+            env: 
+              - name: MYSQL_USER
+                valueFrom:
+                  secretKeyRef:
+                    key: database_user
+                    name: ${NAME}
+              - name: MYSQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    key: database_password
+                    name: ${NAME}
+              - name: MYSQL_DATABASE
+                value: ${DATABASE_NAME}
+              - name: DATABASE_SERVICE_NAME
+                value: ${DATABASE_SERVICE_NAME}
+            volumes:
+              - config-volume
+    template:
+      metadata:
+        labels:
+          name: ${DATABASE_SERVICE_NAME}
+        name: ${DATABASE_SERVICE_NAME}
+      spec:
+        containers:
+        - env:
+          - name: MYSQL_USER
+            valueFrom:
+              secretKeyRef:
+                key: database_user
+                name: ${NAME}
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: database_password
+                name: ${NAME}
+          - name: MYSQL_DATABASE
+            value: ${DATABASE_NAME}
+          image: ' '
+          livenessProbe:
+            initialDelaySeconds: 30
+            tcpSocket:
+              port: 3306
+            timeoutSeconds: 1
+          name: mysql
+          ports:
+          - containerPort: 3306
+          readinessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -i
+              - -c
+              - MYSQL_PWD='${DATABASE_PASSWORD}' mysql -h 127.0.0.1 -u ${DATABASE_USER}
+                -D ${DATABASE_NAME} -e 'SELECT 1'
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+          volumeMounts:
+          - mountPath: /var/lib/mysql/data
+            name: data
+          - mountPath: /tmp/config
+            name: config-volume
+        volumes:
+        - emptyDir: {}
+          name: data
+        - name: config-volume
+          configMap:
+            name: ${NAME}-config
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - mysql
+        from:
+          kind: ImageStreamTag
+          name: mysql:5.7
+          namespace: ${NAMESPACE}
+      type: ImageChange
+    - type: ConfigChange
+parameters:
+- description: The name assigned to all of the frontend objects defined in this template.
+  displayName: Name
+  name: NAME
+  required: true
+  value: quotes
+- description: The OpenShift Namespace where the ImageStream resides.
+  displayName: Namespace
+  name: NAMESPACE
+  required: true
+  value: openshift
+- description: Version of PHP image to be used (7.2 or latest).
+  displayName: PHP Version
+  name: PHP_VERSION
+  required: true
+  value: "7.2"
+- description: The URL of the repository with your application source code.
+  displayName: Git Repository URL
+  name: SOURCE_REPOSITORY_URL
+  required: true
+  value: https://github.com/roxcarpio/DO288-apps.git
+- description: Set this to a branch name, tag or other ref of your repository if you
+    are not using the default branch.
+  displayName: Git Reference
+  name: SOURCE_REPOSITORY_REF
+  value: master
+- description: Set this to the relative path to your project if it is not in the root
+    of your repository.
+  displayName: Context Directory
+  name: CONTEXT_DIR
+  value: quotes
+- description: The exposed hostname that will route to the CakePHP service, if left
+    blank a value will be defaulted.
+  displayName: Application Hostname
+  name: APPLICATION_DOMAIN
+- description: Github trigger secret.  A difficult to guess string encoded as part
+    of the webhook URL.  Not encrypted.
+  displayName: GitHub Webhook Secret
+  from: '[a-zA-Z0-9]{40}'
+  generate: expression
+  name: GITHUB_WEBHOOK_SECRET
+- displayName: Database Service Name
+  name: DATABASE_SERVICE_NAME
+  required: true
+  value: quotesdb
+- displayName: Database Name
+  name: DATABASE_NAME
+  required: true
+  value: quotes
+- displayName: Database User
+  name: DATABASE_USER
+  required: true
+  value: quotesphp
+- displayName: Database Password
+  from: '[a-zA-Z0-9]{16}'
+  generate: expression
+  name: DATABASE_PASSWORD
