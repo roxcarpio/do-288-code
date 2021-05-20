@@ -1,0 +1,11 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  template: summer-countdown
+metadata:
+  annotations:
+    iconClass: icon-php
+    openshift.io/display-name: Summer Count Down Aplication
+    tags: php,template
+  name: summer-countdown
+objects:

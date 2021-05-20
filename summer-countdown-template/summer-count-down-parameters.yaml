@@ -1,0 +1,15 @@
+parameters:
+- name: APP_GIT_URL
+  displayName: Application Source Git URL
+  description: The Git URL of the application source code
+  required: true
+- name: BUILD_STRATEGY
+  displayName: Build Strategy
+  description: Strategy used to build de application
+  generate: expression
+  from: '[a-zA-Z0-9]{16}'
+- name: WEBHOOK_SECRET
+  displayName: Webhook Secret
+  description: Secret for webhooks
+  generate: expression
+  from: '[a-zA-Z0-9]{40}'

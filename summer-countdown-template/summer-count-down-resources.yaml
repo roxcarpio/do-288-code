@@ -1,0 +1,147 @@
+# apiVersion: v1
+# items:
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    # annotations:
+    #   openshift.io/generated-by: OpenShiftNewApp
+    # creationTimestamp: null
+    labels:
+      app: summer-code
+      app.kubernetes.io/component: summer-code
+      app.kubernetes.io/instance: summer-code
+      app.kubernetes.io/name: php
+    name: summer-code
+  # spec:
+  #   lookupPolicy:
+  #     local: false
+  # status:
+  #   dockerImageRepository: ""
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    # annotations:
+    #   openshift.io/generated-by: OpenShiftNewApp
+    # creationTimestamp: null
+    labels:
+      app: summer-code
+      app.kubernetes.io/component: summer-code
+      app.kubernetes.io/instance: summer-code
+      app.kubernetes.io/name: php
+    name: summer-code
+  spec:
+    # nodeSelector: null
+    output:
+      to:
+        kind: ImageStreamTag
+        name: summer-code:latest
+    # postCommit: {}
+    # resources: {}
+    source:
+      contextDir: summer-countdown
+      git:
+        uri: https://github.com/roxcarpio/do-288-code.git
+      type: Git
+    strategy:
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          name: php:7.2
+          namespace: openshift
+      type: Source
+    triggers:
+    - github:
+        secret: ep1MpE-aqhkgeNOi2dvu
+      type: GitHub
+    - generic:
+        secret: uQXDr37E53aBu83zXZn6
+      type: Generic
+    - type: ConfigChange
+    - imageChange: {}
+      type: ImageChange
+  # status:
+  #   lastVersion: 0
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    # annotations:
+    #   openshift.io/generated-by: OpenShiftNewApp
+    # creationTimestamp: null
+    labels:
+      app: summer-code
+      app.kubernetes.io/component: summer-code
+      app.kubernetes.io/instance: summer-code
+      app.kubernetes.io/name: php
+    name: summer-code
+  spec:
+    replicas: 1
+    selector:
+      deploymentconfig: summer-code
+    # strategy:
+    #   resources: {}
+    template:
+      metadata:
+        # annotations:
+        #   openshift.io/generated-by: OpenShiftNewApp
+        # creationTimestamp: null
+        labels:
+          deploymentconfig: summer-code
+      spec:
+        containers:
+        - env:
+          - name: BUILD_STRATEGY
+            value: Source
+          image: summer-code:latest
+          name: summer-code
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          - containerPort: 8443
+            protocol: TCP
+          # resources: {}
+    # test: false
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - summer-code
+        from:
+          kind: ImageStreamTag
+          name: summer-code:latest
+      type: ImageChange
+  # status:
+  #   availableReplicas: 0
+  #   latestVersion: 0
+  #   observedGeneration: 0
+  #   replicas: 0
+  #   unavailableReplicas: 0
+  #   updatedReplicas: 0
+- apiVersion: v1
+  kind: Service
+  metadata:
+    # annotations:
+    #   openshift.io/generated-by: OpenShiftNewApp
+    # creationTimestamp: null
+    labels:
+      app: summer-code
+      app.kubernetes.io/component: summer-code
+      app.kubernetes.io/instance: summer-code
+      app.kubernetes.io/name: php
+    name: summer-code
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    - name: 8443-tcp
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+    selector:
+      deploymentconfig: summer-code
+#   status:
+#     loadBalancer: {}
+# kind: List
+# metadata: {}

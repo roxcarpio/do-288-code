@@ -1,0 +1,146 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  template: summer-countdown
+metadata:
+  annotations:
+    description: An example application to show how many days are left for summer
+    iconClass: icon-php
+    openshift.io/display-name: Summer Count Down Aplication
+    tags: php,template
+  name: summer-countdown
+objects:
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: summer-code
+      app.kubernetes.io/component: summer-code
+      app.kubernetes.io/instance: summer-code
+      app.kubernetes.io/name: php
+    name: summer-code
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: summer-code
+      app.kubernetes.io/component: summer-code
+      app.kubernetes.io/instance: summer-code
+      app.kubernetes.io/name: php
+    name: summer-code
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: summer-code:latest
+    source:
+      contextDir: summer-countdown
+      git:
+        uri: ${APP_GIT_URL}
+      type: Git
+    strategy:
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          name: php:7.2
+          namespace: openshift
+      type: Source
+    triggers:
+    - github:
+        secret: ${WEBHOOK_SECRET}
+      type: GitHub
+    - generic:
+        secret: ${WEBHOOK_SECRET}
+      type: Generic
+    - type: ConfigChange
+    - imageChange: {}
+      type: ImageChange
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: summer-code
+      app.kubernetes.io/component: summer-code
+      app.kubernetes.io/instance: summer-code
+      app.kubernetes.io/name: php
+    name: summer-code
+  spec:
+    replicas: 1
+    selector:
+      deploymentconfig: summer-code
+    template:
+      metadata:
+        labels:
+          deploymentconfig: summer-code
+      spec:
+        containers:
+        - env:
+          - name: BUILD_STRATEGY
+            value: ${BUILD_STRATEGY}
+          image: summer-code:latest
+          name: summer-code
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          - containerPort: 8443
+            protocol: TCP
+    triggers:
+    - type: ConfigChange
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - summer-code
+        from:
+          kind: ImageStreamTag
+          name: summer-code:latest
+      type: ImageChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: summer-code
+      app.kubernetes.io/component: summer-code
+      app.kubernetes.io/instance: summer-code
+      app.kubernetes.io/name: php
+    name: summer-code
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    - name: 8443-tcp
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
+    selector:
+      deploymentconfig: summer-code
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: summer-code
+    labels:
+      app: summer-code
+      app.kubernetes.io/component: summer-code
+      app.kubernetes.io/instance: summer-code
+      app.kubernetes.io/name: php
+  spec:
+    port:
+      targetPort: 8080-tcp
+    to:
+      kind: Service
+      name: summer-code
+parameters:
+- name: APP_GIT_URL
+  displayName: Application Source Git URL
+  description: The Git URL of the application source code
+  required: true
+- name: BUILD_STRATEGY
+  displayName: Build Strategy
+  description: Strategy used to build de application
+  value: Template
+- name: WEBHOOK_SECRET
+  displayName: Webhook Secret
+  description: Secret for webhooks
+  generate: expression
+  from: '[a-zA-Z0-9]{40}'
