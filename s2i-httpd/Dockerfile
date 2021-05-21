@@ -1,4 +1,5 @@
-FROM registry.access.redhat.com/ubi8/ubi:8.0 
+FROM registry.access.redhat.com/ubi8/ubi:8.0
+
 # Generic labels
 LABEL Component="httpd" \
 	  Name="s2i-do288-httpd" \
