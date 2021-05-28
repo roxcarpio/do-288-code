@@ -27,7 +27,10 @@ spec:
         failurePolicy: Abort
         execNewPod:
           containerName: mysql
-          command: [ "bash", "-c", "mysql -u $MYSQL_USER -p$MYSQL_PASSWORD --database $MYSQL_DATABASE -h $DATABASE_SERVICE_NAME -e 'mysql -u $MYSQL_USER -p$MYSQL_PASSWORD --database $MYSQL_DATABASE -h mysqldb -e 'CREATE TABLE Item (id BIGINT not null auto_increment primary key, description VARCHAR(100), done BIT);''", "mysql -u $MYSQL_USER -p$MYSQL_PASSWORD --database $MYSQL_DATABASE -h $DATABASE_SERVICE_NAME -e 'INSERT INTO Item (id, description, done) VALUES (2,"Buy groceries", 0);'"]
+          command:
+          - /bin/bash
+          - -c
+          - mysql -u $MYSQL_USER -p$MYSQL_PASSWORD --database $MYSQL_DATABASE -h $DATABASE_SERVICE_NAME -e 'CREATE TABLE Item (id BIGINT not null auto_increment primary key, description VARCHAR(100), done BIT);'; mysql -u $MYSQL_USER -p$MYSQL_PASSWORD --database $MYSQL_DATABASE -h $DATABASE_SERVICE_NAME -e 'INSERT INTO Item (id, description, done) VALUES (2,"Buy groceries", 0);'
           env: 
             - name: MYSQL_USER
               value: todoapp
